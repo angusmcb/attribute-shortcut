@@ -1,10 +1,24 @@
 from __future__ import annotations
 
-from typing import Callable
+from typing import cast
 
-from qgis.PyQt.QtGui import QIcon
-from qgis.PyQt.QtWidgets import QAction, QWidget
+from qgis.core import (
+    QgsApplication,
+    QgsLayerTree,
+    QgsLayerTreeGroup,
+    QgsLayerTreeLayer,
+    QgsProject,
+    QgsVectorLayer,
+)
+from qgis.gui import (
+    QgisInterface,
+    QgsLayerTreeView,
+    QgsLayerTreeViewIndicator,
+)
+from qgis.PyQt.QtCore import QCoreApplication, QObject, pyqtSlot
 from qgis.utils import iface
+
+iface = cast(QgisInterface, iface)  # Ensure iface is cast to QgsInterface
 
 
 class Plugin:
@@ -13,95 +27,89 @@ class Plugin:
     name = "attribute-shortcut"
 
     def __init__(self) -> None:
-        self.actions: list[QAction] = []
-        self.menu = Plugin.name
-
-    def add_action(
-        self,
-        icon_path: str,
-        text: str,
-        callback: Callable,
-        *,
-        enabled_flag: bool = True,
-        add_to_menu: bool = True,
-        add_to_toolbar: bool = True,
-        status_tip: str | None = None,
-        whats_this: str | None = None,
-        parent: QWidget | None = None,
-    ) -> QAction:
-        """Add a toolbar icon to the toolbar.
-
-        :param icon_path: Path to the icon for this action. Can be a resource
-            path (e.g. ':/plugins/foo/bar.png') or a normal file system path.
-
-        :param text: Text that should be shown in menu items for this action.
-
-        :param callback: Function to be called when the action is triggered.
-
-        :param enabled_flag: A flag indicating if the action should be enabled
-            by default. Defaults to True.
-
-        :param add_to_menu: Flag indicating whether the action should also
-            be added to the menu. Defaults to True.
-
-        :param add_to_toolbar: Flag indicating whether the action should also
-            be added to the toolbar. Defaults to True.
-
-        :param status_tip: Optional text to show in a popup when mouse pointer
-            hovers over the action.
-
-        :param parent: Parent widget for the new action. Defaults None.
-
-        :param whats_this: Optional text to show in the status bar when the
-            mouse pointer hovers over the action.
-
-        :returns: The action that was created. Note that the action is also
-            added to self.actions list.
-        :rtype: QAction
-        """
-
-        icon = QIcon(icon_path)
-        action = QAction(icon, text, parent)
-        # noinspection PyUnresolvedReferences
-        action.triggered.connect(callback)
-        action.setEnabled(enabled_flag)
-
-        if status_tip is not None:
-            action.setStatusTip(status_tip)
-
-        if whats_this is not None:
-            action.setWhatsThis(whats_this)
-
-        if add_to_toolbar:
-            # Adds plugin icon to Plugins toolbar
-            iface.addToolBarIcon(action)
-
-        if add_to_menu:
-            iface.addPluginToMenu(self.menu, action)
-
-        self.actions.append(action)
-
-        return action
+        self.indicators: list[AttributeShortcutIndicator] = []
+        self.connections: list[tuple[QObject, QCoreApplication.pyqtBoundSignal]] = []
+        self.object = QObject()
 
     def initGui(self) -> None:  # noqa N802
-        """Create the menu entries and toolbar icons inside the QGIS GUI."""
-        self.add_action(
-            "",
-            text=Plugin.name,
-            callback=self.run,
-            parent=iface.mainWindow(),
-            add_to_toolbar=False,
-        )
+        root: QgsLayerTree = QgsProject.instance().layerTreeRoot()
+        connection = root.addedChildren.connect(self.add_indicator_to_layers)
+        self.connections.append((root, connection))
 
-    def onClosePlugin(self) -> None:  # noqa N802
-        """Cleanup necessary items here when plugin dockwidget is closed"""
+        self.add_indicator_to_layers(root)
 
     def unload(self) -> None:
-        """Removes the plugin menu item and icon from QGIS GUI."""
-        for action in self.actions:
-            iface.removePluginMenu(Plugin.name, action)
-            iface.removeToolBarIcon(action)
+        root = QgsProject.instance().layerTreeRoot()
+        root.addedChildren.disconnect(self.add_indicator_to_layers)
 
-    def run(self) -> None:
-        """Run method that performs all the real work"""
-        print("Hello QGIS plugin")  # noqa: T201
+        layer_tree_view = iface.layerTreeView()
+        for indicator in self.object.findChildren(AttributeShortcutIndicator):
+            try:
+                layer_tree_view.removeIndicator(indicator.layer_tree_layer, indicator)
+            except RuntimeError:
+                pass
+
+        self.object.deleteLater()
+
+    def add_indicator_to_layers(self, layer_tree: QgsLayerTreeGroup, *args) -> None:
+        """Add a layer tree view indicator to a vector layer."""
+
+        layer_tree_view: QgsLayerTreeView = iface.layerTreeView()
+
+        for layer_tree_layer in layer_tree.findLayers():
+            if any(
+                isinstance(ind, AttributeShortcutIndicator)
+                for ind in layer_tree_view.indicators(layer_tree_layer)
+            ):
+                continue
+
+            indicator_adder = QgsIndicatorAdder(self.object, layer_tree_layer)
+
+            if not layer_tree_layer.layer():
+                layer_tree_layer.layerLoaded.connect(indicator_adder.add_indicator_to_layer)
+            else:
+                indicator_adder.add_indicator_to_layer()
+
+
+class QgsIndicatorAdder(QObject):
+    """Helper class to add indicators to layer tree layers."""
+
+    def __init__(self, parent: QObject | None, layer_tree_layer: QgsLayerTreeLayer) -> None:
+        super().__init__(parent)
+        self.layer_tree_layer = layer_tree_layer
+
+    @pyqtSlot()
+    def add_indicator_to_layer(
+        self,
+    ) -> None:
+        layer_tree_layer = self.layer_tree_layer
+
+        map_layer = layer_tree_layer.layer()
+
+        if not isinstance(map_layer, QgsVectorLayer):
+            return
+
+        indicator = AttributeShortcutIndicator(self.parent(), map_layer, layer_tree_layer)
+
+        iface.layerTreeView().addIndicator(layer_tree_layer, indicator)
+
+        self.deleteLater()
+
+
+class AttributeShortcutIndicator(QgsLayerTreeViewIndicator):
+    """Custom indicator for the attribute shortcut plugin."""
+
+    _icon = QgsApplication.getThemeIcon("mActionOpenTable.svg")
+
+    def __init__(
+        self, parent: QObject | None, layer: QgsVectorLayer, layer_tree_layer: QgsLayerTreeLayer
+    ) -> None:
+        super().__init__(parent)
+        self.layer = layer
+        self.layer_tree_layer = layer_tree_layer
+        self.setIcon(self._icon)
+        # Aim to borrow translation from qgis core
+        self.setToolTip(
+            QgsApplication.translate("QgsMapToolIdentifyAction", "Show Attribute Table")
+        )
+        self.clicked.connect(lambda: iface.showAttributeTable(layer))
