@@ -13,3 +13,19 @@ fixtures:
   This should be used with tests that add stuff to QgsProject.
 
 """
+
+from unittest.mock import Mock
+
+import pytest
+from qgis.core import QgsProject, QgsVectorLayer
+from qgis.gui import QgsLayerTreeView, QgsMessageBar
+
+
+@pytest.fixture(autouse=True, scope="session")
+def patch_iface(qgis_app, qgis_iface):
+    qgis_iface.statusBarIface = Mock()
+    layer_tree_view = QgsLayerTreeView()
+    qgis_iface.layerTreeView = lambda: layer_tree_view
+    qgis_iface.addToolBarWidget = Mock()
+    message_bar = QgsMessageBar()
+    qgis_iface.messageBar = lambda: message_bar
