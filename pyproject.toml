@@ -1,9 +1,22 @@
 [tool.pytest.ini_options]
-addopts = "-v"
+addopts = "-v --strict-markers --tb=short"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "unit: Unit tests with mocked dependencies",
+    "integration: Integration tests requiring QGIS",
+    "slow: Slow running tests",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
 
 [tool.ruff]
-target-version = "py38"
-
+target-version = "py39"
+line-length = 100
 
 [tool.ruff.lint]
 select = [
