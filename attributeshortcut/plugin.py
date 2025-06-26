@@ -105,6 +105,5 @@ class AttributeShortcutIndicator(QgsLayerTreeViewIndicator):
         try:
             layer = layers[self.layer_id]
         except KeyError:
-            print(f"Layer with ID {self.layer_id} not found.")
             return
         iface.showAttributeTable(layer)
