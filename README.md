@@ -8,6 +8,17 @@
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)](https://github.com/pre-commit/pre-commit)
 
+## Description
+
+Attribute Table Shortcut is a QGIS plugin that provides quick access buttons next to each layer in the layers list to open their attribute tables. This small plugin streamlines your workflow by eliminating the need to right-click layers or navigate through menus to access attribute data.
+
+### Features
+
+- Adds convenient buttons directly in the layers panel
+- One-click access to attribute tables for any layer
+- Streamlined workflow for attribute data management
+- Lightweight and efficient plugin design
+
 ## Development
 
 Create a virtual environment activate it and install needed dependencies with the following commands:
@@ -47,6 +58,37 @@ The workspace contains all the settings and extensions needed for development.
 
 Select the Python interpreter with Command Palette (Ctrl+Shift+P). Select `Python: Select Interpreter` and choose
 the one with the path `.venv\Scripts\python.exe`.
+
+
+### Keeping dependencies up to date
+
+1. Activate the virtual environment.
+2. `pip install pip-tools`
+3. `pip-compile --upgrade requirements-dev.in`
+4. `pip install -r requirements-dev.txt` or `pip-sync requirements-dev.txt`
+
+### Adding or editing  source files
+
+If you create or edit source files make sure that:
+
+* they contain absolute imports:
+    ```python
+    from attributeshortcut.utils.exceptions import TestException # Good
+
+    from ..utils.exceptions import TestException # Bad
+
+    ```
+* you consider adding test files for the new functionality
+
+### Testing
+
+Install python packages listed in [requirements-dev.txt](../requirements-dev.txt) to the virtual environment
+and run tests with:
+
+```shell script
+pytest
+```
+
 
 ## License
 This plugin is distributed under the terms of the [GNU General Public License, version 3](https://www.gnu.org/licenses/gpl-3.0.html) license.
