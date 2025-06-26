@@ -10,3 +10,5 @@ pytest-qgis
 pre-commit
 mypy
 ruff
+
+create-qgis-venv
