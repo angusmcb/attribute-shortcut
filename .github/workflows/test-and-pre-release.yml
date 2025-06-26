@@ -16,7 +16,7 @@ jobs:
     strategy:
       matrix:
         # Remove unsupported versions and add more versions. Use LTR version in the cov_tests job
-        docker_tags: [release-3_10, release-3_16, latest]
+        docker_tags: [release-3_10, release-3_16, release-3_22, '3.22',release-3_28, latest]
       fail-fast: false
 
     container:
