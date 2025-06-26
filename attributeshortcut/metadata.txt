@@ -2,12 +2,14 @@
 name=Attribute Table Shortcut
 description=
 about=
-version=0.1.0
+version=1.0.0
 qgisMinimumVersion=3.16
 author=
 email=
 changelog=
 tags=
+icon=logo.svg
+supportsQt6=True
 repository=https://github.com/angusmcb/attribute-shortcut
 tracker=https://github.com/angusmcb/attribute-shortcut/issues
 homepage=https://github.com/angusmcb/attribute-shortcut
