@@ -17,7 +17,6 @@ fixtures:
 from unittest.mock import Mock
 
 import pytest
-from qgis.core import QgsProject, QgsVectorLayer
 from qgis.gui import QgsLayerTreeView, QgsMessageBar
 
 

@@ -4,16 +4,13 @@ from typing import Any, cast
 
 from qgis.core import (
     QgsApplication,
-    QgsLayerTree,
     QgsLayerTreeGroup,
-    QgsLayerTreeLayer,
     QgsMapLayer,
     QgsProject,
     QgsVectorLayer,
 )
 from qgis.gui import (
     QgisInterface,
-    QgsLayerTreeView,
     QgsLayerTreeViewIndicator,
 )
 from qgis.utils import iface
