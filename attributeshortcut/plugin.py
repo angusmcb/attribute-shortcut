@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from typing import cast
+from typing import Any, cast
 
 from qgis.core import (
     QgsApplication,
     QgsLayerTree,
     QgsLayerTreeGroup,
     QgsLayerTreeLayer,
+    QgsMapLayer,
     QgsProject,
     QgsVectorLayer,
 )
@@ -15,85 +16,72 @@ from qgis.gui import (
     QgsLayerTreeView,
     QgsLayerTreeViewIndicator,
 )
-from qgis.PyQt.QtCore import QCoreApplication, QObject, pyqtSlot
 from qgis.utils import iface
 
-iface = cast(QgisInterface, iface)  # Ensure iface is cast to QgsInterface
+iface = cast(QgisInterface, iface)
 
 
 class Plugin:
-    """QGIS Plugin Implementation."""
-
-    name = "attribute-shortcut"
-
     def __init__(self) -> None:
-        self.indicators: list[AttributeShortcutIndicator] = []
-        self.connections: list[tuple[QObject, QCoreApplication.pyqtBoundSignal]] = []
-        self.object = QObject()
+        self.indicators: dict[str, AttributeShortcutIndicator] = {}
 
     def initGui(self) -> None:  # noqa N802
-        root: QgsLayerTree = QgsProject.instance().layerTreeRoot()
-        connection = root.addedChildren.connect(self.add_indicator_to_layers)
-        self.connections.append((root, connection))
+        project = QgsProject.instance()
 
-        self.add_indicator_to_layers(root)
+        project.layersAdded.connect(self.receive_layers_added)
+
+        root = project.layerTreeRoot()
+        root.addedChildren.connect(self.layer_tree_layer_added)
+
+        existing_layers = project.mapLayers().values()
+        self.receive_layers_added(existing_layers)
 
     def unload(self) -> None:
-        root = QgsProject.instance().layerTreeRoot()
-        root.addedChildren.disconnect(self.add_indicator_to_layers)
+        project = QgsProject.instance()
 
-        layer_tree_view = iface.layerTreeView()
-        for indicator in self.object.findChildren(AttributeShortcutIndicator):
-            try:
-                layer_tree_view.removeIndicator(indicator.layer_tree_layer, indicator)
-            except RuntimeError:
-                pass
+        project.layersAdded.disconnect(self.receive_layers_added)
 
-        self.object.deleteLater()
+        root = project.layerTreeRoot()
+        root.addedChildren.disconnect(self.layer_tree_layer_added)
 
-    def add_indicator_to_layers(self, layer_tree: QgsLayerTreeGroup, *args) -> None:
-        """Add a layer tree view indicator to a vector layer."""
+        for layer_id, indicator in self.indicators.items():
+            layer_tree_layer = project.layerTreeRoot().findLayer(layer_id)
+            if layer_tree_layer:
+                iface.layerTreeView().removeIndicator(layer_tree_layer, indicator)
+            indicator.deleteLater()
 
-        layer_tree_view: QgsLayerTreeView = iface.layerTreeView()
+        self.indicators.clear()
 
-        for layer_tree_layer in layer_tree.findLayers():
-            if any(
-                isinstance(ind, AttributeShortcutIndicator)
-                for ind in layer_tree_view.indicators(layer_tree_layer)
-            ):
+    def receive_layers_added(self, layers: list[QgsMapLayer]) -> None:
+        """Receive layers added to the project and add indicators to them."""
+
+        for layer in layers:
+            layer_id = layer.id()
+
+            if layer_id in self.indicators:
+                continue
+            if not isinstance(layer, QgsVectorLayer):
                 continue
 
-            indicator_adder = QgsIndicatorAdder(self.object, layer_tree_layer)
+            indicator = AttributeShortcutIndicator(layer_id)
+            self.indicators[layer_id] = indicator
 
-            if not layer_tree_layer.layer():
-                layer_tree_layer.layerLoaded.connect(indicator_adder.add_indicator_to_layer)
-            else:
-                indicator_adder.add_indicator_to_layer()
+            layer_tree_layer = QgsProject.instance().layerTreeRoot().findLayer(layer_id)
 
+            if not layer_tree_layer:
+                continue
 
-class QgsIndicatorAdder(QObject):
-    """Helper class to add indicators to layer tree layers."""
+            iface.layerTreeView().addIndicator(layer_tree_layer, indicator)
 
-    def __init__(self, parent: QObject | None, layer_tree_layer: QgsLayerTreeLayer) -> None:
-        super().__init__(parent)
-        self.layer_tree_layer = layer_tree_layer
+    def layer_tree_layer_added(self, layer_tree: QgsLayerTreeGroup, *args: Any) -> None:
+        for layer_tree_layer in layer_tree.findLayers():
+            layer_id = layer_tree_layer.layerId()
 
-    @pyqtSlot()
-    def add_indicator_to_layer(
-        self,
-    ) -> None:
-        layer_tree_layer = self.layer_tree_layer
+            if layer_id not in self.indicators:
+                continue
 
-        map_layer = layer_tree_layer.layer()
-
-        if not isinstance(map_layer, QgsVectorLayer):
-            return
-
-        indicator = AttributeShortcutIndicator(self.parent(), map_layer, layer_tree_layer)
-
-        iface.layerTreeView().addIndicator(layer_tree_layer, indicator)
-
-        self.deleteLater()
+            indicator = self.indicators[layer_id]
+            iface.layerTreeView().addIndicator(layer_tree_layer, indicator)
 
 
 class AttributeShortcutIndicator(QgsLayerTreeViewIndicator):
@@ -101,15 +89,22 @@ class AttributeShortcutIndicator(QgsLayerTreeViewIndicator):
 
     _icon = QgsApplication.getThemeIcon("mActionOpenTable.svg")
 
-    def __init__(
-        self, parent: QObject | None, layer: QgsVectorLayer, layer_tree_layer: QgsLayerTreeLayer
-    ) -> None:
-        super().__init__(parent)
-        self.layer = layer
-        self.layer_tree_layer = layer_tree_layer
+    def __init__(self, layer_id: str) -> None:
+        super().__init__()
+        self.layer_id = layer_id
         self.setIcon(self._icon)
         # Aim to borrow translation from qgis core
         self.setToolTip(
             QgsApplication.translate("QgsMapToolIdentifyAction", "Show Attribute Table")
         )
-        self.clicked.connect(lambda: iface.showAttributeTable(layer))
+        self.clicked.connect(self.show_attribute_table)
+
+    def show_attribute_table(self) -> None:
+        """Show the attribute table for the layer."""
+        layers = QgsProject.instance().mapLayers()
+        try:
+            layer = layers[self.layer_id]
+        except KeyError:
+            print(f"Layer with ID {self.layer_id} not found.")
+            return
+        iface.showAttributeTable(layer)
