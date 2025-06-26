@@ -11,4 +11,4 @@ pre-commit
 mypy
 ruff
 
-create-qgis-venv
+qgis-venv-creator
