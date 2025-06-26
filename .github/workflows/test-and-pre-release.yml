@@ -19,32 +19,24 @@ jobs:
         docker_tags: [release-3_10, release-3_16, latest]
       fail-fast: false
 
-    # Steps represent a sequence of tasks that will be executed as part of the job
+    container:
+      image: qgis/qgis:${{ matrix.docker_tags }}
+      env:
+        QGIS_PLUGIN_IN_CI: 1
+        PIP_BREAK_SYSTEM_PACKAGES: 1
+
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v2
-        with:
-          submodules: true
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-      - name: Pull qgis
-        run: docker pull qgis/qgis:${{ matrix.docker_tags }}
+      - name: Setup Environment
+        run: |
+          apt-get update
+          pip3 install -r requirements.txt
 
-      # Runs all tests
-      - name: Run tests
-        run: >
-          docker run --rm --net=host --volume `pwd`:/app -w=/app -e QGIS_PLUGIN_IN_CI=1 qgis/qgis:${{ matrix.docker_tags }} sh -c
-          "pip3 install -qr requirements.txt && xvfb-run -s '+extension GLX -screen 0 1024x768x24'
-          pytest -v --cov=attributeshortcut --cov-report=xml"
+      - name: Run Tests
+        run: xvfb-run -s '+extension GLX -screen 0 1024x768x24' python3 -m pytest -v
 
-      # Upload coverage report. Will not work if the repo is private
-      - name: Upload coverage to Codecov
-        if: ${{ matrix.docker_tags == 'latest' && !github.event.repository.private }}
-        uses: codecov/codecov-action@v1
-        with:
-          file: ./coverage.xml
-          flags: unittests
-          fail_ci_if_error: false # set to true when upload is working
-          verbose: false
 
   windows_tests:
     runs-on: windows-latest
