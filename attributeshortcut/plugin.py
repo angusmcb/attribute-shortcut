@@ -5,6 +5,7 @@ from typing import cast
 from qgis.core import (
     QgsApplication,
     QgsLayerTreeGroup,
+    QgsLayerTreeNode,
     QgsMapLayer,
     QgsProject,
     QgsVectorLayer,
@@ -70,12 +71,14 @@ class Plugin:
             indicator = AttributeShortcutIndicator(layer_id)
             self.indicators[layer_id] = indicator
 
+            # it seems that in some cases this can be affected by race condition
             layer_tree_layer = root.findLayer(layer_id)
 
             if not layer_tree_layer:
                 continue
 
-            iface.layerTreeView().addIndicator(layer_tree_layer, indicator)
+            # to avoid race condition, use this method:
+            self.add_indicator_to_layer_tree_node(layer_tree_layer)
 
     def layer_tree_layer_added(
         self,
@@ -88,17 +91,21 @@ class Plugin:
         layer_tree_nodes = layer_tree.children()[indexFrom : indexTo + 1]
 
         for layer_tree_node in layer_tree_nodes:
-            try:
-                layer_id = layer_tree_node.layerId()
-            except AttributeError:  # Not a layer node
-                continue
+            self.add_indicator_to_layer_tree_node(layer_tree_node)
 
-            try:
-                indicator = self.indicators[layer_id]
-            except KeyError:  # No indicator for this layer
-                continue
+    def add_indicator_to_layer_tree_node(self, layer_tree_node: QgsLayerTreeNode) -> None:
+        """Add the indicator to the layer tree node."""
+        try:
+            layer_id = layer_tree_node.layerId()
+        except AttributeError:  # Not a layer node
+            return
 
-            iface.layerTreeView().addIndicator(layer_tree_node, indicator)
+        try:
+            indicator = self.indicators[layer_id]
+        except KeyError:  # No indicator for this layer
+            return
+
+        iface.layerTreeView().addIndicator(layer_tree_node, indicator)
 
 
 class AttributeShortcutIndicator(QgsLayerTreeViewIndicator):
