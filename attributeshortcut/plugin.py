@@ -19,6 +19,11 @@ iface = cast(QgisInterface, iface)
 
 ATTRIBUTE_TABLE_ICON = QgsApplication.getThemeIcon("mActionOpenTable.svg")
 
+# Aim to borrow translation from qgis core
+ATTRIBUTE_TABLE_TOOLTIP = QgsApplication.translate(
+    "QgsMapToolIdentifyAction", "Show Attribute Table"
+)
+
 
 class Plugin:
     def __init__(self) -> None:
@@ -103,10 +108,7 @@ class AttributeShortcutIndicator(QgsLayerTreeViewIndicator):
         super().__init__()
         self.layer_id = layer_id
         self.setIcon(ATTRIBUTE_TABLE_ICON)
-        # Aim to borrow translation from qgis core
-        self.setToolTip(
-            QgsApplication.translate("QgsMapToolIdentifyAction", "Show Attribute Table")
-        )
+        self.setToolTip(ATTRIBUTE_TABLE_TOOLTIP)
         self.clicked.connect(self.show_attribute_table)
 
     def show_attribute_table(self) -> None:
