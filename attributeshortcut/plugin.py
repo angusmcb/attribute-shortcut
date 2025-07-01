@@ -52,7 +52,7 @@ class Plugin(QObject):
         root.addedChildren.disconnect(self.layer_tree_layer_added)
         root.willRemoveChildren.disconnect(self.layer_tree_layer_will_be_removed)
 
-        for layer_id in self.indicators:
+        for layer_id in list(self.indicators):
             self.map_layer_will_be_removed(layer_id)
 
     @pyqtSlot("QgsMapLayer*")
