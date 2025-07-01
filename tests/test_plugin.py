@@ -45,3 +45,31 @@ def test_add_indicator_to_layer_added_later(
     layer_tree_view = qgis_iface.layerTreeView()
     indicators = layer_tree_view.indicators(layer_tree_layer)
     assert sum(isinstance(ind, AttributeShortcutIndicator) for ind in indicators) == 1
+
+
+def test_remove_indicator_on_layer_removal(
+    qgis_countries_layer, qgis_iface, plugin, qgis_new_project
+):
+    QgsProject.instance().addMapLayer(qgis_countries_layer)
+
+    assert len(plugin.indicators) == 1
+
+    QgsProject.instance().removeMapLayer(qgis_countries_layer.id())
+
+    assert plugin.indicators == {}
+
+
+def test_plugin_unload_removes_all_indicators(qgis_countries_layer, qgis_iface):
+    QgsProject.instance().addMapLayer(qgis_countries_layer)
+
+    plugin = Plugin()
+    plugin.initGui()
+
+    layer_tree_layer = QgsProject.instance().layerTreeRoot().findLayer(qgis_countries_layer.id())
+    layer_tree_view = qgis_iface.layerTreeView()
+    indicators = layer_tree_view.indicators(layer_tree_layer)
+    assert sum(isinstance(ind, AttributeShortcutIndicator) for ind in indicators) == 1
+
+    plugin.unload()
+    indicators = layer_tree_view.indicators(layer_tree_layer)
+    assert sum(isinstance(ind, AttributeShortcutIndicator) for ind in indicators) == 0
